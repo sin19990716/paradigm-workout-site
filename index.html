@@ -2252,6 +2252,70 @@ document.getElementById("aiChatButton").onclick = () => {
 document.getElementById("aiChatClose").onclick = () => {
   document.getElementById("aiChatWindow").style.display = "none";
 };
+// 메시지 말풍선 UI 생성
+function aiAddMessage(text, who = "bot") {
+  const box = document.getElementById("aiChatMessages");
+  const row = document.createElement("div");
+  row.style.margin = "6px 0";
+  row.style.display = "flex";
+  row.style.justifyContent = who === "user" ? "flex-end" : "flex-start";
+
+  const bubble = document.createElement("div");
+  bubble.textContent = text;
+  bubble.style.padding = "8px 10px";
+  bubble.style.borderRadius = "6px";
+  bubble.style.maxWidth = "80%";
+  bubble.style.whiteSpace = "pre-wrap";
+
+  if (who === "user") {
+    bubble.style.background = "#2563eb";
+    bubble.style.color = "white";
+  } else {
+    bubble.style.background = "#e5e7eb";
+    bubble.style.color = "black";
+  }
+
+  row.appendChild(bubble);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+// 실제 Netlify 서버 함수로 요청 보내기
+function sendMessage() {
+  const input = document.getElementById("aiChatInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  aiAddMessage(text, "user");
+  input.value = "";
+
+  fetch("/.netlify/functions/ai-chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: text })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.reply) aiAddMessage(data.reply, "bot");
+      else aiAddMessage("⚠ 서버 응답 오류", "bot");
+    })
+    .catch(err => {
+      console.error(err);
+      aiAddMessage("⚠ 서버에 연결할 수 없습니다.", "bot");
+    });
+}
+
+// 전송 버튼
+document.getElementById("aiChatSend").onclick = () => sendMessage();
+
+// 엔터 입력 지원
+document.getElementById("aiChatInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+</script>
 
 // 메시지 출력
 function aiAddMessage(text, sender="bot") {
