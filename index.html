@@ -2245,144 +2245,112 @@
 </div>
 
 <script>
-// 열기 / 닫기
-document.getElementById("aiChatButton").onclick = () => {
-  document.getElementById("aiChatWindow").style.display = "flex";
-};
-document.getElementById("aiChatClose").onclick = () => {
-  document.getElementById("aiChatWindow").style.display = "none";
-};
-// 메시지 말풍선 UI 생성
-function aiAddMessage(text, who = "bot") {
-  const box = document.getElementById("aiChatMessages");
-  const row = document.createElement("div");
-  row.style.margin = "6px 0";
-  row.style.display = "flex";
-  row.style.justifyContent = who === "user" ? "flex-end" : "flex-start";
+  // ====== 열기 / 닫기 ======
+  document.getElementById("aiChatButton").onclick = () => {
+    document.getElementById("aiChatWindow").style.display = "flex";
+  };
+  document.getElementById("aiChatClose").onclick = () => {
+    document.getElementById("aiChatWindow").style.display = "none";
+  };
 
-  const bubble = document.createElement("div");
-  bubble.textContent = text;
-  bubble.style.padding = "8px 10px";
-  bubble.style.borderRadius = "6px";
-  bubble.style.maxWidth = "80%";
-  bubble.style.whiteSpace = "pre-wrap";
-
-  if (who === "user") {
-    bubble.style.background = "#2563eb";
-    bubble.style.color = "white";
-  } else {
-    bubble.style.background = "#e5e7eb";
-    bubble.style.color = "black";
+  // ====== 말풍선 출력 ======
+  function aiAddMessage(text, sender = "bot") {
+    const box = document.getElementById("aiChatMessages");
+    const div = document.createElement("div");
+    div.className = "aiMsg " + (sender === "me" ? "aiMe" : "aiBot");
+    div.innerHTML = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
   }
 
-  row.appendChild(bubble);
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
-}
+  // ====== Netlify Functions로 요청 보내기 ======
+  async function aiSendToServer(msg) {
+    try {
+      const memberId = window.memberSelect?.value || "";
+      const payload = {
+        message: msg,
+        memberId,
+        members: loadMembers(),
+        sessions: loadSessions(),
+        inbody: loadInbody(),
+        exerciseLibrary
+      };
 
-// 실제 Netlify 서버 함수로 요청 보내기
-function sendMessage() {
-  const input = document.getElementById("aiChatInput");
-  const text = input.value.trim();
-  if (!text) return;
+      const res = await fetch("/.netlify/functions/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-  aiAddMessage(text, "user");
-  input.value = "";
+      const data = await res.json();
 
-  fetch("/.netlify/functions/ai-chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: text })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.reply) aiAddMessage(data.reply, "bot");
-      else aiAddMessage("⚠ 서버 응답 오류", "bot");
-    })
-    .catch(err => {
-      console.error(err);
-      aiAddMessage("⚠ 서버에 연결할 수 없습니다.", "bot");
-    });
-}
+      if (data.text) {
+        aiAddMessage(data.text, "bot");
+      }
 
-// 전송 버튼
-document.getElementById("aiChatSend").onclick = () => sendMessage();
+      // AI가 action 내려주면 처리
+      if (data.action) {
+        handleAiAction(data.action);
+      }
 
-// 엔터 입력 지원
-document.getElementById("aiChatInput").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
+    } catch (e) {
+      console.error(e);
+      aiAddMessage("⚠️ 서버 통신 오류 (Netlify Functions 확인 필요)", "bot");
+    }
   }
-});
-</script>
 
-// 메시지 출력
-function aiAddMessage(text, sender="bot") {
-  const box = document.getElementById("aiChatMessages");
-  const div = document.createElement("div");
-  div.className = "aiMsg " + (sender === "me" ? "aiMe" : "aiBot");
-  div.innerHTML = text;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-// AI 요청 처리
-async function aiSendToServer(msg) {
-  try {
-    const memberId = memberSelect?.value || "";
-    const payload = {
-      message: msg,
-      memberId,
-      members: loadMembers(),
-      sessions: loadSessions(),
-      inbody: loadInbody(),
-      exerciseLibrary
-    };
-    const res = await fetch("/.netlify/functions/ai-chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-
-    if (data.text) aiAddMessage(data.text, "bot");
-
-    // ⬇️ AI가 행동(action)을 보내면 자동 수행
-    if (data.action) {
-      handleAiAction(data.action);
+  // ====== AI가 내려준 action 처리 ======
+  function handleAiAction(action) {
+    // 1) 운동 추가
+    if (action.addExercises && Array.isArray(action.addExercises)) {
+      if (!Array.isArray(window.todayExercises)) {
+        window.todayExercises = [];
+      }
+      window.todayExercises = window.todayExercises.concat(action.addExercises);
+      if (typeof renderTodayExercises === "function") {
+        renderTodayExercises();
+      }
     }
 
-  } catch (e) {
-    aiAddMessage("⚠️ 서버 통신 오류 (Netlify Functions 확인 필요)", "bot");
-  }
-}
+    // 2) 인바디 분석 카드 추가
+    if (action.inbodyAnalysis && typeof action.inbodyAnalysis === "string") {
+      const dash = document.getElementById("dashboardInbody");
+      if (dash) {
+        dash.innerHTML += `
+          <div class="dashboard-card" style="margin-top:6px;">
+            <strong>AI 분석 결과</strong><br/>${action.inbodyAnalysis}
+          </div>`;
+      }
+    }
 
-// 행동 처리 (운동/중량 추가 등)
-function handleAiAction(action) {
-  if (action.addExercises) {
-    todayExercises = todayExercises.concat(action.addExercises);
-    renderTodayExercises();
+    // 3) 알림
+    if (action.alert) {
+      alert(action.alert);
+    }
   }
-  if (action.inbodyAnalysis) {
-    dashboardInbodyDiv.innerHTML +=
-      `<div class="dashboard-card" style="margin-top:6px;">
-         <strong>AI 분석 결과</strong><br/>${action.inbodyAnalysis}
-       </div>`;
-  }
-  if (action.alert) alert(action.alert);
-}
 
-// 전송 버튼
-document.getElementById("aiChatSend").onclick = () => {
-  const input = document.getElementById("aiChatInput");
-  const msg = input.value.trim();
-  if (!msg) return;
-  aiAddMessage(msg, "me");
-  input.value = "";
-  aiSendToServer(msg);
-};
+  // ====== 메시지 전송 공통 로직 ======
+  function sendMessage() {
+    const input = document.getElementById("aiChatInput");
+    const msg = input.value.trim();
+    if (!msg) return;
+    aiAddMessage(msg, "me");
+    input.value = "";
+    aiSendToServer(msg);
+  }
+
+  // 버튼 클릭
+  document.getElementById("aiChatSend").onclick = sendMessage;
+
+  // 엔터키 (Shift+Enter는 줄바꿈)
+  document.getElementById("aiChatInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
 </script>
-
 </body>
 </html>
+
+
