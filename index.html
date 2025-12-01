@@ -1341,11 +1341,12 @@
           exerciseLibrary
         };
 
-        const res = await fetch("/.netlify/functions/ai-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        const res = await fetch("https://plain-dew-cd06.ownwind1.workers.dev/ai-chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
+
 
         if (!res.ok) {
           aiAddMessage(`⚠ 서버 오류 (status: ${res.status})`, "bot");
