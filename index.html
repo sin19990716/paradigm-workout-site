@@ -1341,10 +1341,10 @@
           exerciseLibrary
         };
 
-        const res = await fetch("https://plain-dew-cd06.ownwind1.workers.dev/ai-chat", {
+        const res = await fetch("https://plain-dew-cd06.ownwind1.workers.dev", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload)
+  body: JSON.stringify(payload),
 });
 
 
